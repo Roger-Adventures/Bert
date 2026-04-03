@@ -1,0 +1,65 @@
+{
+  "model_name": "hfl/chinese-macbert-base",
+  "train_size": 966,
+  "dev_size": 207,
+  "test_size": 207,
+  "class_weights": [
+    0.9583333333333334,
+    0.8214285714285714,
+    1.15,
+    1.15
+  ],
+  "train_runtime_seconds": 33.1165,
+  "train_samples_per_second": 87.509,
+  "train_steps_per_second": 10.961,
+  "test_metrics": {
+    "accuracy": 1.0,
+    "macro_f1": 1.0,
+    "normal_precision": 1.0,
+    "normal_recall": 1.0,
+    "normal_f1": 1.0,
+    "abuse_precision": 1.0,
+    "abuse_recall": 1.0,
+    "abuse_f1": 1.0,
+    "sexual_precision": 1.0,
+    "sexual_recall": 1.0,
+    "sexual_f1": 1.0,
+    "ad_precision": 1.0,
+    "ad_recall": 1.0,
+    "ad_f1": 1.0
+  },
+  "confusion_matrix": {
+    "labels": [
+      "normal",
+      "abuse",
+      "sexual",
+      "ad"
+    ],
+    "matrix": [
+      [
+        54,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        63,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        45,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        45
+      ]
+    ]
+  }
+}

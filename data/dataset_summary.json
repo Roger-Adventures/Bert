@@ -1,0 +1,18 @@
+{
+  "total": 1380,
+  "train": 966,
+  "dev": 207,
+  "test": 207,
+  "label_distribution": {
+    "abuse": 420,
+    "ad": 300,
+    "normal": 360,
+    "sexual": 300
+  },
+  "sources": {
+    "abuse": "COLDataset offensive samples",
+    "normal": "manual self-labeled interview examples",
+    "sexual": "manual self-labeled interview examples",
+    "ad": "manual self-labeled interview examples"
+  }
+}

@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>中文内容审核决策原型</title>
+    <style>
+      :root {
+        --sand: #f2eadb;
+        --paper: rgba(255, 249, 239, 0.88);
+        --paper-strong: rgba(255, 252, 247, 0.96);
+        --ink: #1d1511;
+        --muted: #6b5d54;
+        --line: rgba(29, 21, 17, 0.12);
+        --accent: #ad3a2d;
+        --accent-deep: #7f2419;
+        --teal: #295f67;
+        --allow: #2d7c5a;
+        --review: #b2791f;
+        --block: #b03f34;
+        --shadow: 0 28px 70px rgba(73, 40, 25, 0.14);
+        --radius-lg: 28px;
+        --radius-md: 20px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at 0% 0%, rgba(173, 58, 45, 0.18), transparent 25%),
+          radial-gradient(circle at 100% 100%, rgba(41, 95, 103, 0.16), transparent 28%),
+          linear-gradient(145deg, #f4ecdf, #f7f2ea 50%, #efe4d0);
+        font-family: "STSong", "Songti SC", "Noto Serif SC", Georgia, serif;
+      }
+
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        background-image:
+          linear-gradient(rgba(29, 21, 17, 0.025) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(29, 21, 17, 0.025) 1px, transparent 1px);
+        background-size: 28px 28px;
+        opacity: 0.45;
+      }
+
+      .shell {
+        position: relative;
+        z-index: 1;
+        max-width: 1240px;
+        margin: 0 auto;
+        padding: 26px 20px 68px;
+      }
+
+      .status-bar {
+        display: grid;
+        grid-template-columns: 1.3fr 1fr 1fr 0.9fr;
+        gap: 14px;
+        margin-bottom: 20px;
+      }
+
+      .panel {
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(14px);
+      }
+
+      .status-card {
+        min-height: 112px;
+        padding: 18px 20px;
+      }
+
+      .status-card small,
+      .metric-card small {
+        display: block;
+        color: var(--muted);
+        font: 700 11px/1.4 "Microsoft YaHei", sans-serif;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      .status-card strong,
+      .metric-card strong {
+        display: block;
+        margin-top: 10px;
+        font-size: 21px;
+        line-height: 1.15;
+      }
+
+      .status-card span {
+        display: block;
+        margin-top: 8px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.6;
+        word-break: break-all;
+      }
+
+      .status-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 10px;
+        padding: 7px 12px;
+        border-radius: 999px;
+        font: 700 12px/1 "Microsoft YaHei", sans-serif;
+      }
+
+      .status-ok {
+        background: rgba(45, 124, 90, 0.14);
+        color: var(--allow);
+      }
+
+      .status-warn {
+        background: rgba(176, 63, 52, 0.14);
+        color: var(--block);
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: 1.2fr 0.8fr;
+        gap: 18px;
+        margin-bottom: 18px;
+      }
+
+      .hero-copy {
+        padding: 28px 30px 30px;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 7px 14px;
+        border-radius: 999px;
+        background: rgba(173, 58, 45, 0.1);
+        color: var(--accent);
+        font: 700 12px/1 "Microsoft YaHei", sans-serif;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 16px 0 12px;
+        font-size: clamp(36px, 6vw, 62px);
+        line-height: 0.95;
+        letter-spacing: -0.05em;
+      }
+
+      .hero-copy p {
+        max-width: 44rem;
+        margin: 0;
+        color: var(--muted);
+        font-size: 16px;
+        line-height: 1.9;
+      }
+
+      .hero-points {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 22px;
+      }
+
+      .metric-card {
+        padding: 14px 15px;
+        border-radius: 18px;
+        background: var(--paper-strong);
+        border: 1px solid rgba(29, 21, 17, 0.08);
+      }
+
+      .overview-card {
+        padding: 24px;
+        background:
+          linear-gradient(160deg, rgba(29, 21, 17, 0.97), rgba(42, 29, 25, 0.96)),
+          var(--paper);
+        color: #f8f2ea;
+      }
+
+      .overview-card h2 {
+        margin: 0;
+        font-size: 30px;
+        line-height: 1.06;
+      }
+
+      .overview-card p {
+        margin: 12px 0 0;
+        color: rgba(248, 242, 234, 0.76);
+        line-height: 1.8;
+      }
+
+      .overview-list {
+        margin: 18px 0 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .overview-list li {
+        padding: 14px 0;
+        border-top: 1px solid rgba(248, 242, 234, 0.14);
+        line-height: 1.7;
+      }
+
+      .workspace {
+        display: grid;
+        grid-template-columns: 1.06fr 0.94fr;
+        gap: 18px;
+      }
+
+      .section {
+        padding: 24px;
+      }
+
+      .section-title {
+        margin: 0 0 15px;
+        font: 700 15px/1 "Microsoft YaHei", sans-serif;
+        color: var(--muted);
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+
+      .input-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 14px;
+        align-items: end;
+        margin-bottom: 14px;
+      }
+
+      .input-head strong {
+        font-size: 24px;
+        line-height: 1.2;
+      }
+
+      .quick-note {
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.7;
+        max-width: 20rem;
+      }
+
+      textarea {
+        width: 100%;
+        min-height: 196px;
+        resize: vertical;
+        border: 1px solid rgba(29, 21, 17, 0.1);
+        border-radius: 22px;
+        padding: 18px;
+        background: rgba(255, 255, 255, 0.86);
+        color: var(--ink);
+        font: 500 16px/1.85 "STSong", "Songti SC", serif;
+      }
+
+      .sample-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin: 15px 0 18px;
+      }
+
+      .sample-chip,
+      .action-button,
+      .link-button {
+        appearance: none;
+        border: 1px solid rgba(29, 21, 17, 0.1);
+        border-radius: 999px;
+        padding: 10px 14px;
+        cursor: pointer;
+        text-decoration: none;
+        transition: transform 180ms ease, background 180ms ease, border-color 180ms ease;
+        font: 700 13px/1 "Microsoft YaHei", sans-serif;
+      }
+
+      .sample-chip,
+      .link-button {
+        background: rgba(255, 255, 255, 0.8);
+        color: var(--ink);
+      }
+
+      .sample-chip:hover,
+      .action-button:hover,
+      .link-button:hover {
+        transform: translateY(-1px);
+      }
+
+      .sample-chip:hover,
+      .link-button:hover {
+        background: rgba(173, 58, 45, 0.08);
+        border-color: rgba(173, 58, 45, 0.26);
+      }
+
+      .action-button {
+        background: linear-gradient(135deg, var(--accent), var(--accent-deep));
+        color: #fff8f0;
+        border-color: transparent;
+        padding: 12px 20px;
+      }
+
+      .button-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+      }
+
+      .warning-box,
+      .info-box {
+        margin-top: 16px;
+        border-radius: 20px;
+        padding: 14px 16px;
+        line-height: 1.7;
+      }
+
+      .warning-box {
+        background: rgba(176, 63, 52, 0.09);
+        border: 1px solid rgba(176, 63, 52, 0.16);
+        color: #7d281f;
+      }
+
+      .warning-box[hidden],
+      .info-box[hidden] {
+        display: none;
+      }
+
+      .info-box {
+        background: rgba(41, 95, 103, 0.09);
+        border: 1px solid rgba(41, 95, 103, 0.16);
+        color: var(--teal);
+      }
+
+      .result-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .result-card {
+        padding: 16px;
+        border-radius: 18px;
+        background: var(--paper-strong);
+        border: 1px solid rgba(29, 21, 17, 0.08);
+      }
+
+      .result-card small {
+        display: block;
+        color: var(--muted);
+        font: 700 11px/1.4 "Microsoft YaHei", sans-serif;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .result-card strong {
+        display: block;
+        margin-top: 8px;
+        font-size: 23px;
+      }
+
+      .decision-card {
+        position: relative;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at top right, rgba(173, 58, 45, 0.12), transparent 26%),
+          var(--paper);
+      }
+
+      .decision-card::after {
+        content: "";
+        position: absolute;
+        top: -58px;
+        right: -42px;
+        width: 160px;
+        height: 160px;
+        border-radius: 50%;
+        background: rgba(41, 95, 103, 0.07);
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        font: 700 12px/1 "Microsoft YaHei", sans-serif;
+      }
+
+      .pill-allow {
+        background: rgba(45, 124, 90, 0.14);
+        color: var(--allow);
+      }
+
+      .pill-review {
+        background: rgba(178, 121, 31, 0.16);
+        color: var(--review);
+      }
+
+      .pill-block {
+        background: rgba(176, 63, 52, 0.16);
+        color: var(--block);
+      }
+
+      .detail-list,
+      .reason-list,
+      .strategy-list {
+        margin: 16px 0 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .detail-list li,
+      .reason-list li,
+      .strategy-list li {
+        padding: 11px 0;
+        border-top: 1px solid rgba(29, 21, 17, 0.08);
+        line-height: 1.7;
+      }
+
+      .detail-list strong {
+        display: inline-block;
+        width: 92px;
+        color: var(--muted);
+      }
+
+      .probability-list {
+        margin: 16px 0 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .probability-list li {
+        display: grid;
+        grid-template-columns: 86px 1fr 60px;
+        gap: 12px;
+        align-items: center;
+        padding: 10px 0;
+        border-top: 1px solid rgba(29, 21, 17, 0.08);
+      }
+
+      .bar {
+        height: 10px;
+        border-radius: 999px;
+        overflow: hidden;
+        background: rgba(29, 21, 17, 0.08);
+      }
+
+      .bar > span {
+        display: block;
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, var(--teal), var(--accent));
+      }
+
+      .support-grid {
+        display: grid;
+        grid-template-columns: 0.9fr 1.1fr;
+        gap: 18px;
+        margin-top: 18px;
+      }
+
+      .matrix-frame {
+        overflow: hidden;
+        border-radius: 20px;
+        border: 1px solid rgba(29, 21, 17, 0.08);
+        background: rgba(255, 255, 255, 0.84);
+      }
+
+      .matrix-frame img {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      th,
+      td {
+        padding: 12px 10px;
+        border-top: 1px solid rgba(29, 21, 17, 0.08);
+        text-align: left;
+        vertical-align: top;
+        font-size: 14px;
+        line-height: 1.65;
+      }
+
+      th {
+        color: var(--muted);
+        font: 700 12px/1.3 "Microsoft YaHei", sans-serif;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .mono {
+        font-family: "Consolas", "SFMono-Regular", monospace;
+      }
+
+      .muted {
+        color: var(--muted);
+      }
+
+      .error {
+        color: var(--block);
+      }
+
+      @media (max-width: 1024px) {
+        .status-bar,
+        .hero,
+        .workspace,
+        .support-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .hero-points,
+        .result-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="status-bar">
+        <article class="panel status-card">
+          <small>系统状态</small>
+          <strong id="statusHeadline">正在检查环境...</strong>
+          <div id="statusChip" class="status-chip status-warn">等待健康检查</div>
+          <span id="statusDetail">页面会先读取 /health，确认模型和解释器状态。</span>
+        </article>
+        <article class="panel status-card">
+          <small>模型路径</small>
+          <strong id="modelPath">-</strong>
+          <span id="modelLoadHint">-</span>
+        </article>
+        <article class="panel status-card">
+          <small>运行解释器</small>
+          <strong id="pythonVersion">-</strong>
+          <span id="pythonExecutable">-</span>
+        </article>
+        <article class="panel status-card">
+          <small>快速入口</small>
+          <strong>文档与健康检查</strong>
+          <span>
+            <a class="link-button" href="/docs" target="_blank" rel="noreferrer">打开 /docs</a>
+            <a class="link-button" href="/health" target="_blank" rel="noreferrer">查看 /health</a>
+          </span>
+        </article>
+      </section>
+
+      <section class="hero">
+        <article class="panel hero-copy">
+          <div class="eyebrow">moderation decision prototype</div>
+          <h1>中文内容审核<br />决策原型</h1>
+          <p>
+            这个页面聚焦于一条完整的文本内容审核链路：模型识别语义风险，规则补充高确定性模式，
+            最终输出风险等级、审核动作和可解释原因。
+          </p>
+          <div class="hero-points">
+            <div class="metric-card">
+              <small>场景</small>
+              <strong>文本审核决策</strong>
+            </div>
+            <div class="metric-card">
+              <small>默认模型</small>
+              <strong>MacBERT Base</strong>
+            </div>
+            <div class="metric-card">
+              <small>输出动作</small>
+              <strong>放行 / 人审 / 拦截</strong>
+            </div>
+          </div>
+        </article>
+        <aside class="panel overview-card">
+          <h2>系统概览</h2>
+          <p>当前原型围绕审核决策设计，而不是只输出一个分类标签。</p>
+          <ul class="overview-list">
+            <li>模型负责识别辱骂、低俗、广告等语义风险。</li>
+            <li>规则负责补充手机号、微信号、优惠券、返利等高确定性模式。</li>
+            <li>系统最终输出放行、人审、拦截三档动作，并保留命中原因。</li>
+          </ul>
+        </aside>
+      </section>
+
+      <section class="workspace">
+        <article class="panel section">
+          <small class="section-title">审核输入</small>
+          <div class="input-head">
+            <strong>输入一段评论、帖子或私信文案</strong>
+            <div class="quick-note">支持直接输入文本，也可以点击下方示例快速查看不同风险类型的决策结果。</div>
+          </div>
+          <textarea id="inputText">wx 联系，优惠价只限今天，想做代理可以私聊我。</textarea>
+          <div class="sample-row" id="sampleRow"></div>
+          <div class="button-row">
+            <button class="action-button" id="predictButton" type="button">运行审核决策</button>
+            <a class="link-button" href="/docs" target="_blank" rel="noreferrer">查看接口文档</a>
+          </div>
+          <div class="warning-box" id="fallbackWarning" hidden>
+            当前服务处于 <span class="mono">rules fallback</span> 模式。通常意味着你不是用项目当前解释器启动的服务。
+            建议使用 <span class="mono">python run_demo.py</span> 重新启动，并检查 <span class="mono">/health</span> 中的
+            <span class="mono">python_executable</span>。
+          </div>
+          <div class="info-box" id="launchHint" hidden>
+            推荐启动方式：<span class="mono">python run_demo.py</span>。不要直接使用系统里的 <span class="mono">uvicorn</span> 命令。
+          </div>
+        </article>
+
+        <article class="panel section decision-card">
+          <small class="section-title">审核结果</small>
+          <div class="result-grid">
+            <div class="result-card">
+              <small>主标签</small>
+              <strong id="labelValue">-</strong>
+            </div>
+            <div class="result-card">
+              <small>审核动作</small>
+              <strong id="actionValue">-</strong>
+            </div>
+            <div class="result-card">
+              <small>风险等级</small>
+              <strong id="bandValue">-</strong>
+            </div>
+            <div class="result-card">
+              <small>综合风险分</small>
+              <strong id="scoreValue">-</strong>
+            </div>
+          </div>
+
+          <ul class="detail-list">
+            <li><strong>决策来源</strong><span id="sourceValue">-</span></li>
+            <li><strong>阈值原因</strong><span id="thresholdValue">-</span></li>
+            <li><strong>规则命中</strong><span id="ruleValue">-</span></li>
+            <li><strong>状态说明</strong><span id="statusLine">等待输入文本并执行审核。</span></li>
+          </ul>
+
+          <ul class="probability-list" id="probabilityList"></ul>
+          <ul class="reason-list" id="reasonList"></ul>
+        </article>
+      </section>
+
+      <section class="support-grid">
+        <article class="panel section">
+          <small class="section-title">结果支撑</small>
+          <div class="matrix-frame">
+            <img
+              src="/reports/confusion_matrix.png"
+              alt="模型混淆矩阵"
+              onerror="this.replaceWith(Object.assign(document.createElement('p'), { className: 'muted', textContent: '训练完成后会在 reports/confusion_matrix.png 生成混淆矩阵图。' }));"
+            />
+          </div>
+          <ul class="strategy-list">
+            <li>高风险类别且分数或规则强度达到阈值时，直接拦截。</li>
+            <li>风险分处于中间区间，或模型置信度偏低时，进入人工审核。</li>
+            <li>正常内容且无强规则命中时，直接放行。</li>
+          </ul>
+        </article>
+
+        <article class="panel section">
+          <small class="section-title">典型案例</small>
+          <table>
+            <thead>
+              <tr>
+                <th>文本</th>
+                <th>判断</th>
+                <th>动作</th>
+                <th>阈值原因</th>
+              </tr>
+            </thead>
+            <tbody id="casesTableBody"></tbody>
+          </table>
+        </article>
+      </section>
+    </main>
+
+    <script>
+      const sampleTexts = [
+        "这次更新后加载速度提升明显，整体体验比上周稳定不少。",
+        "你这人说话真欠，没人想理你，赶紧闭嘴。",
+        "主页里一直在发擦边写真，私信还会继续给你看图。",
+        "wx 联系，优惠价只限今天，想做代理可以私聊我。",
+        "评论区里有人留手机号卖资源，最好让人工再看一下。"
+      ];
+
+      const showcaseCases = [
+        "这次版本修复了闪退问题，日常使用稳定很多。",
+        "你是不是脑子进水了，这种观点也能发出来。",
+        "她主页全是擦边写真，懂的来私聊看图。",
+        "加微信 abc8899 领取优惠券，今天最后一天。",
+        "评论区里有人留手机号卖资源，最好让人工再看一下。",
+        "这个教程写得很细，适合新手照着做。"
+      ];
+
+      const labelMapping = {
+        normal: "正常内容",
+        abuse: "辱骂攻击",
+        sexual: "低俗色情",
+        ad: "广告引流"
+      };
+
+      const sampleRow = document.getElementById("sampleRow");
+      const inputText = document.getElementById("inputText");
+      const predictButton = document.getElementById("predictButton");
+      const labelValue = document.getElementById("labelValue");
+      const actionValue = document.getElementById("actionValue");
+      const bandValue = document.getElementById("bandValue");
+      const scoreValue = document.getElementById("scoreValue");
+      const sourceValue = document.getElementById("sourceValue");
+      const thresholdValue = document.getElementById("thresholdValue");
+      const ruleValue = document.getElementById("ruleValue");
+      const statusLine = document.getElementById("statusLine");
+      const probabilityList = document.getElementById("probabilityList");
+      const reasonList = document.getElementById("reasonList");
+      const casesTableBody = document.getElementById("casesTableBody");
+
+      const statusHeadline = document.getElementById("statusHeadline");
+      const statusChip = document.getElementById("statusChip");
+      const statusDetail = document.getElementById("statusDetail");
+      const modelPath = document.getElementById("modelPath");
+      const modelLoadHint = document.getElementById("modelLoadHint");
+      const pythonVersion = document.getElementById("pythonVersion");
+      const pythonExecutable = document.getElementById("pythonExecutable");
+      const fallbackWarning = document.getElementById("fallbackWarning");
+      const launchHint = document.getElementById("launchHint");
+
+      function actionPillClass(action) {
+        if (action === "allow") return "pill pill-allow";
+        if (action === "review") return "pill pill-review";
+        return "pill pill-block";
+      }
+
+      function createSampleButtons() {
+        sampleTexts.forEach((text) => {
+          const button = document.createElement("button");
+          button.className = "sample-chip";
+          button.type = "button";
+          button.textContent = text.length > 22 ? `${text.slice(0, 22)}...` : text;
+          button.addEventListener("click", () => {
+            inputText.value = text;
+          });
+          sampleRow.appendChild(button);
+        });
+      }
+
+      async function getHealth() {
+        const response = await fetch("/health");
+        if (!response.ok) throw new Error("健康检查失败");
+        return response.json();
+      }
+
+      async function predict(text) {
+        const response = await fetch("/predict", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text })
+        });
+        if (!response.ok) throw new Error("审核接口调用失败");
+        return response.json();
+      }
+
+      function renderHealth(health) {
+        statusHeadline.textContent = health.model_loaded ? "模型已加载，可进行完整审核" : "模型未加载，当前处于规则兜底";
+        statusChip.className = `status-chip ${health.model_loaded ? "status-ok" : "status-warn"}`;
+        statusChip.textContent = health.model_loaded ? "model ready" : "rules fallback";
+        statusDetail.textContent = `设备：${health.device}，策略版本：${health.policy_version}，docs：${health.docs_url}`;
+
+        modelPath.textContent = health.model_dir;
+        modelLoadHint.textContent = health.load_error ? `加载说明：${health.load_error}` : "模型已正常加载。";
+
+        pythonVersion.textContent = health.python_version;
+        pythonExecutable.textContent = health.python_executable;
+
+        fallbackWarning.hidden = health.model_loaded;
+        launchHint.hidden = health.model_loaded;
+      }
+
+      function renderProbabilities(probabilities) {
+        probabilityList.innerHTML = "";
+        Object.entries(probabilities).forEach(([label, score]) => {
+          const item = document.createElement("li");
+          const name = document.createElement("span");
+          const bar = document.createElement("div");
+          const value = document.createElement("strong");
+          name.textContent = labelMapping[label] ?? label;
+          bar.className = "bar";
+          bar.innerHTML = `<span style="width: ${Math.max(score * 100, 2)}%"></span>`;
+          value.textContent = score.toFixed(4);
+          item.append(name, bar, value);
+          probabilityList.appendChild(item);
+        });
+      }
+
+      function renderReasons(reasons) {
+        reasonList.innerHTML = "";
+        reasons.forEach((reason) => {
+          const item = document.createElement("li");
+          item.textContent = reason;
+          reasonList.appendChild(item);
+        });
+      }
+
+      function renderMainResult(payload) {
+        labelValue.textContent = `${payload.label_name} (${payload.label})`;
+        actionValue.innerHTML = `<span class="${actionPillClass(payload.action)}">${payload.action_name}</span>`;
+        bandValue.textContent = payload.risk_band_name;
+        scoreValue.textContent = payload.risk_score.toFixed(4);
+        sourceValue.textContent = payload.source;
+        thresholdValue.textContent = payload.threshold_reason;
+        ruleValue.textContent = payload.rule_hits.length
+          ? payload.rule_hits.map((item) => `${item.rule_name}: ${item.matched_text}`).join(" | ")
+          : "未命中规则";
+        statusLine.textContent = `模型置信度 ${payload.model_confidence.toFixed(4)}，当前决策来源：${payload.source}。`;
+        renderProbabilities(payload.probabilities);
+        renderReasons(payload.reasons);
+      }
+
+      async function runPrediction() {
+        const text = inputText.value.trim();
+        if (!text) {
+          statusLine.textContent = "请输入待审核文本。";
+          return;
+        }
+
+        predictButton.disabled = true;
+        predictButton.textContent = "审核中...";
+        try {
+          const payload = await predict(text);
+          renderMainResult(payload);
+        } catch (error) {
+          statusLine.textContent = error.message;
+        } finally {
+          predictButton.disabled = false;
+          predictButton.textContent = "运行审核决策";
+        }
+      }
+
+      async function renderShowcaseTable() {
+        casesTableBody.innerHTML = "";
+        for (const text of showcaseCases) {
+          try {
+            const payload = await predict(text);
+            const row = document.createElement("tr");
+            row.innerHTML = `
+              <td>${text}</td>
+              <td>${payload.label_name}</td>
+              <td><span class="${actionPillClass(payload.action)}">${payload.action_name}</span></td>
+              <td class="muted">${payload.threshold_reason}</td>
+            `;
+            casesTableBody.appendChild(row);
+          } catch (error) {
+            const row = document.createElement("tr");
+            row.innerHTML = `<td colspan="4" class="error">典型案例加载失败：${error.message}</td>`;
+            casesTableBody.appendChild(row);
+            break;
+          }
+        }
+      }
+
+      async function bootstrap() {
+        createSampleButtons();
+        predictButton.addEventListener("click", runPrediction);
+
+        try {
+          const health = await getHealth();
+          renderHealth(health);
+        } catch (error) {
+          statusHeadline.textContent = "健康检查失败";
+          statusChip.className = "status-chip status-warn";
+          statusChip.textContent = "health error";
+          statusDetail.textContent = error.message;
+        }
+
+        await runPrediction();
+        await renderShowcaseTable();
+      }
+
+      bootstrap();
+    </script>
+  </body>
+</html>
