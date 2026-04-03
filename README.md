@@ -1,64 +1,17 @@
-# 中文内容审核决策原型
+# 中文内容审核策略原型
 
-这是一个为内容风控/策略岗面试准备的轻量项目。  
-项目目标不是证明“模型有多复杂”，而是展示一条更接近真实业务的审核链路：
+这是一个面向内容风控/策略岗面试准备的轻量项目。  
+项目重点不是做复杂模型堆叠，而是展示一条完整的审核决策链路：
 
-**识别内容风险类型 -> 计算综合风险 -> 决定放行 / 人审 / 拦截**
+`风险识别 -> 风险分层 -> 放行 / 人审 / 拦截`
 
-## 适合面试展示的点
+## 项目特点
 
-- 标签体系清晰：`normal / abuse / sexual / ad`
-- 决策动作明确：`allow / review / block`
-- 输出可解释：有 `risk_score`、`risk_band`、`threshold_reason`、`rule_hits`
-- 规则和模型协同：规则兜底高精度模式，模型处理语义表达
-- 有可直接现场演示的网页原型
-
-## 模型与数据
-
-- 默认模型：`hfl/chinese-macbert-base`
-- 默认训练目标：本机 `RTX 4060 8GB` 上半小时内完成一轮轻量微调
-- 数据策略：
-  - `abuse` 使用 `COLDataset` offensive 样本补强
-  - `normal / sexual / ad` 采用面试展示级定向构造样本
-
-## 推荐启动方式
-
-请使用下面这个命令：
-
-```bash
-python run_demo.py --reload
-```
-
-不要直接使用系统里的：
-
-```bash
-uvicorn serve_api:app --reload
-```
-
-原因是它可能落到错误的 Python 解释器，导致：
-
-- `http://127.0.0.1:8000/docs` 打不开
-- `/health` 显示 `model_loaded=false`
-- 页面进入 `rules fallback`
-
-## 如何判断是不是起错环境
-
-打开：
-
-- `http://127.0.0.1:8000/health`
-
-重点看这些字段：
-
-- `python_executable`
-- `python_version`
-- `torch_available`
-- `transformers_available`
-- `model_loaded`
-
-如果 `model_loaded` 是 `false`，优先检查：
-
-1. 你是不是用 `python run_demo.py` 启动的
-2. IDE 当前选中的解释器是不是项目实际使用的 Python
+- 任务标签固定为 `normal / abuse / sexual / ad`
+- 决策动作固定为 `allow / review / block`
+- 模型负责识别风险类型，规则主要负责升级审核动作
+- 保留“规则 + 模型 + 阈值”三层逻辑，但不做严格概率融合
+- 支持网页演示、接口调用和健康检查
 
 ## 快速开始
 
@@ -81,6 +34,8 @@ python prepare_dataset.py
 - `data/test.csv`
 - `data/dataset_summary.json`
 
+这些文件属于可再生成数据，默认不纳入版本控制。
+
 ### 3. 训练模型
 
 ```bash
@@ -89,11 +44,11 @@ python train.py
 
 默认训练配置：
 
-- `model_name = hfl/chinese-macbert-base`
-- `max_length = 128`
-- `batch_size = 8`
-- `num_train_epochs = 3`
-- `learning_rate = 2e-5`
+- 模型：`hfl/chinese-macbert-base`
+- `max_length=128`
+- `batch_size=8`
+- `num_train_epochs=3`
+- `learning_rate=2e-5`
 
 训练完成后会生成：
 
@@ -101,58 +56,79 @@ python train.py
 - `reports/confusion_matrix.png`
 - `reports/model_metrics.json`
 
-### 4. 启动服务
+其中 `artifacts/`、`reports/` 下的生成结果默认只保留本地，不提交到仓库。
+
+### 4. 启动演示
 
 ```bash
 python run_demo.py --reload
 ```
 
-访问地址：
+不要直接使用系统里的：
 
-- `http://127.0.0.1:8000/`：现场演示页
-- `http://127.0.0.1:8000/docs`：API 文档
+```bash
+uvicorn serve_api:app --reload
+```
+
+这样可以避免服务落到错误的 Python 解释器里。
+
+## 演示入口
+
+- `http://127.0.0.1:8000/`：展示页
+- `http://127.0.0.1:8000/docs`：接口文档
 - `http://127.0.0.1:8000/health`：健康检查
 
-## API 输出重点
+`/predict` 的核心输出字段：
 
-`/predict` 返回的关键字段：
+- `label`
+- `risk_score`
+- `risk_band`
+- `action`
+- `source`
+- `model_confidence`
+- `rule_hits`
+- `reasons`
+- `threshold_reason`
 
-- `label`：内容类型
-- `risk_score`：综合风险分
-- `risk_band`：低风险 / 中风险 / 高风险
-- `action`：放行 / 人审 / 拦截
-- `source`：`model` / `rules` / `model+rules`
-- `model_confidence`：模型置信度
-- `rule_hits`：命中的规则
-- `reasons`：解释性原因列表
-- `threshold_reason`：动作阈值原因
+字段语义：
 
-## 现场演示页包含什么
+- `probabilities`：模型原始概率，用于展示模型参考判断
+- `risk_score`：用于审核动作决策的风险分，不等同于严格概率
 
-- 顶部系统状态：模型是否加载、解释器路径、docs 链接
-- 中间审核输入：示例文本、运行审核按钮
-- 右侧决策输出：标签、动作、风险分、规则命中、阈值原因
-- 下方结果支撑：混淆矩阵和典型案例表
+## 数据说明
 
-## VS Code 调试
+- 主数据集使用 `ChineseHarm-Bench`
+- 标签映射为：
+  - `不违规 -> normal`
+  - `谩骂引战 -> abuse`
+  - `低俗色情 -> sexual`
+  - `黑产广告 -> ad`
+- `博彩` 和 `欺诈` 暂不纳入当前四分类标签体系
+- `abuse` 在主数据不足时可回退补充 `COLDataset` offensive 样本
+- 当前数据集仍然用于演示审核链路，不代表真实生产覆盖度
 
-项目已经提供：
+## 决策逻辑
 
-- `.vscode/launch.json`
+- 模型先给出风险类型基线判断
+- 强规则命中时直接拦截
+- 中强规则命中时至少进入人审
+- 其余情况由模型风险分和置信度决定放行、人审或拦截
 
-直接选择：
+## 目录说明
 
-- `Run Moderation Demo`
+- [run_demo.py](./run_demo.py)：统一启动入口
+- [serve_api.py](./serve_api.py)：FastAPI 服务
+- [pipeline.py](./pipeline.py)：审核决策主逻辑
+- [rules.py](./rules.py)：规则命中逻辑
+- [prepare_dataset.py](./prepare_dataset.py)：数据构造与切分
+- [train.py](./train.py)：模型训练脚本
+- `data/`：数据脚本生成的训练、验证、测试集目录
+- `reports/`：训练脚本生成的评估结果目录
+- [static/index.html](./static/index.html)：展示页结构
+- [static/app.js](./static/app.js)：展示页交互逻辑
+- [static/styles.css](./static/styles.css)：展示页样式
+- [static/demo_content.json](./static/demo_content.json)：示例与案例配置
 
-即可用当前 IDE 解释器启动服务。
+## 补充材料
 
-## 面试时推荐怎么讲
-
-1. 这是一个审核决策原型，不只是文本分类器。
-2. 模型负责语义识别，规则负责高确定性模式拦截。
-3. 内容风控需要 `allow / review / block` 三档，而不是只有“过/不过”。
-4. 我没有盲目追求更大模型，而是选择更适合本地环境和演示节奏的 `MacBERT Base`。
-
-## 讲解材料
-
-- [docs/interview_brief.md](docs/interview_brief.md)
+- [docs/interview_brief.md](./docs/interview_brief.md)

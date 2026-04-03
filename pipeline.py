@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -8,7 +7,6 @@ from labels import (
     ACTION_DISPLAY_NAME,
     ID_TO_LABEL,
     LABEL_DISPLAY_NAME,
-    LABELS,
     RISK_BAND_DISPLAY_NAME,
 )
 from rules import RuleHit, find_rule_hits, max_rule_severity
@@ -23,6 +21,16 @@ try:
 except ImportError:  # pragma: no cover - runtime fallback
     AutoModelForSequenceClassification = None
     AutoTokenizer = None
+
+
+DEFAULT_MODEL_DIR = "artifacts/moderation_macbert"
+DEFAULT_MODEL_PROBABILITIES = {
+    "normal": 0.78,
+    "abuse": 0.08,
+    "sexual": 0.06,
+    "ad": 0.08,
+}
+POLICY_VERSION = "v1.1"
 
 
 @dataclass
@@ -63,13 +71,13 @@ class ModerationResult:
 
 
 class ModerationPipeline:
-    def __init__(self, model_dir: str | Path | None = "artifacts/moderation_macbert") -> None:
+    def __init__(self, model_dir: str | Path | None = DEFAULT_MODEL_DIR) -> None:
         self.model_dir = Path(model_dir) if model_dir else None
         self.model = None
         self.tokenizer = None
         self.model_loaded = False
         self.load_error: str | None = None
-        self.policy_version = "v1.1"
+        self.policy_version = POLICY_VERSION
 
         if torch is not None and torch.cuda.is_available():
             self.device = "cuda"
@@ -106,12 +114,13 @@ class ModerationPipeline:
 
         rule_hits = find_rule_hits(clean_text)
         model_probs, model_confidence = self._predict_with_model(clean_text)
-        combined_scores = self._combine_scores(model_probs, rule_hits)
-        label = max(combined_scores, key=combined_scores.get)
-        risk_score = 1.0 - combined_scores["normal"]
-        decision = self._make_decision(label, risk_score, model_confidence, rule_hits)
+        model_label = max(model_probs, key=model_probs.get)
+        label = self._select_label(model_label, rule_hits)
+        base_risk_score = 1.0 - model_probs["normal"]
+        risk_score = self._combine_scores(base_risk_score, rule_hits)
+        decision = self._make_decision(label, base_risk_score, model_confidence, rule_hits)
         source = self._build_source(rule_hits)
-        reasons = self._build_reasons(label, model_confidence, rule_hits, decision)
+        reasons = self._build_reasons(model_label, label, model_confidence, rule_hits, decision)
 
         result = ModerationResult(
             text=clean_text,
@@ -126,19 +135,15 @@ class ModerationPipeline:
             source=source,
             model_loaded=self.model_loaded,
             model_confidence=model_confidence,
-            probabilities=combined_scores,
+            probabilities=model_probs,
             rule_hits=[hit.to_dict() for hit in rule_hits],
             reasons=reasons,
         )
         return result.to_dict()
 
-    def batch_predict(self, texts: list[str]) -> list[dict[str, object]]:
-        return [self.predict(text) for text in texts]
-
     def _predict_with_model(self, text: str) -> tuple[dict[str, float], float]:
         if not self.model_loaded or self.model is None or self.tokenizer is None or torch is None:
-            base_probs = {"normal": 0.78, "abuse": 0.08, "sexual": 0.06, "ad": 0.08}
-            return base_probs, 0.0
+            return DEFAULT_MODEL_PROBABILITIES, 0.0
 
         inputs = self.tokenizer(
             text,
@@ -155,91 +160,118 @@ class ModerationPipeline:
         probabilities = {ID_TO_LABEL[idx]: float(score) for idx, score in enumerate(probs)}
         return probabilities, float(max(probs))
 
-    def _combine_scores(
-        self,
-        model_probs: dict[str, float],
-        rule_hits: list[RuleHit],
-    ) -> dict[str, float]:
-        combined = {label: float(model_probs.get(label, 0.0)) for label in LABELS}
-        max_rule_by_label = {label: 0.0 for label in LABELS}
-        boost_by_label = {label: 0.0 for label in LABELS}
+    def _select_label(self, model_label: str, rule_hits: list[RuleHit]) -> str:
+        strongest_rule_hit = self._strongest_rule_hit(rule_hits)
+        if strongest_rule_hit is None:
+            return model_label
 
-        for hit in rule_hits:
-            max_rule_by_label[hit.label] = max(max_rule_by_label[hit.label], hit.severity)
-            boost_by_label[hit.label] += hit.score_boost
+        if strongest_rule_hit.severity >= 0.90:
+            return strongest_rule_hit.label
 
-        for label in LABELS:
-            boosted = min(0.99, combined[label] + boost_by_label[label])
-            combined[label] = max(combined[label], boosted, max_rule_by_label[label])
+        if model_label == "normal" and strongest_rule_hit.severity >= 0.75:
+            return strongest_rule_hit.label
 
-        if rule_hits and combined["normal"] > 0.70:
-            combined["normal"] = max(0.05, combined["normal"] - 0.20)
+        return model_label
 
-        total = sum(combined.values())
-        if total <= 0:
-            return {label: 0.0 for label in LABELS}
+    def _combine_scores(self, base_risk_score: float, rule_hits: list[RuleHit]) -> float:
+        highest_rule = max_rule_severity(rule_hits)
+        if highest_rule >= 0.90:
+            return max(base_risk_score, highest_rule)
 
-        return {label: score / total for label, score in combined.items()}
+        if highest_rule >= 0.75:
+            return max(base_risk_score, 0.55)
+
+        return base_risk_score
+
+    def _build_decision(self, action: str, threshold_reason: str) -> Decision:
+        risk_band = "low"
+        if action == "review":
+            risk_band = "medium"
+        elif action == "block":
+            risk_band = "high"
+
+        return Decision(
+            action=action,
+            action_name=ACTION_DISPLAY_NAME[action],
+            risk_band=risk_band,
+            risk_band_name=RISK_BAND_DISPLAY_NAME[risk_band],
+            threshold_reason=threshold_reason,
+        )
 
     def _make_decision(
         self,
         label: str,
-        risk_score: float,
+        base_risk_score: float,
         model_confidence: float,
         rule_hits: list[RuleHit],
     ) -> Decision:
         highest_rule = max_rule_severity(rule_hits)
+        model_decision = self._make_model_decision(label, base_risk_score, model_confidence)
+
+        if highest_rule >= 0.90:
+            return self._build_decision(
+                action="block",
+                threshold_reason="强规则命中：内容命中高确定性风险模式，建议直接拦截。",
+            )
+
+        if model_decision.action == "block":
+            return model_decision
+
+        if highest_rule >= 0.75:
+            return self._build_decision(
+                action="review",
+                threshold_reason="规则提示风险：内容命中风险模式但未达到强规则拦截标准，建议进入人工审核。",
+            )
+
+        if model_decision.action == "review":
+            return model_decision
+
+        return self._build_decision(
+            action="allow",
+            threshold_reason="模型判断为低风险内容，且未命中需要升级处理的规则，建议放行。",
+        )
+
+    def _make_model_decision(
+        self,
+        label: str,
+        base_risk_score: float,
+        model_confidence: float,
+    ) -> Decision:
         low_confidence = self.model_loaded and model_confidence < 0.55
 
-        if label == "normal" and highest_rule < 0.88 and risk_score < 0.35:
-            return Decision(
+        if label == "normal" and base_risk_score < 0.35:
+            return self._build_decision(
                 action="allow",
-                action_name=ACTION_DISPLAY_NAME["allow"],
-                risk_band="low",
-                risk_band_name=RISK_BAND_DISPLAY_NAME["low"],
-                threshold_reason="低风险样本：无强规则命中且综合风险分较低，允许放行。",
+                threshold_reason="模型判断为低风险内容，综合风险分较低，建议放行。",
             )
 
-        if label in {"sexual", "ad"} and (risk_score >= 0.72 or highest_rule >= 0.90):
-            return Decision(
+        if label in {"sexual", "ad"} and base_risk_score >= 0.72:
+            return self._build_decision(
                 action="block",
-                action_name=ACTION_DISPLAY_NAME["block"],
-                risk_band="high",
-                risk_band_name=RISK_BAND_DISPLAY_NAME["high"],
-                threshold_reason="高风险样本：命中高危类别且风险分或规则强度达到拦截阈值，直接拦截。",
+                threshold_reason=f"模型判断为高风险{LABEL_DISPLAY_NAME[label]}内容，且风险分达到拦截阈值，建议直接拦截。",
             )
 
-        if label == "abuse" and (risk_score >= 0.68 or highest_rule >= 0.85):
-            return Decision(
+        if label == "abuse" and base_risk_score >= 0.68:
+            return self._build_decision(
                 action="block",
-                action_name=ACTION_DISPLAY_NAME["block"],
-                risk_band="high",
-                risk_band_name=RISK_BAND_DISPLAY_NAME["high"],
-                threshold_reason="高风险样本：辱骂攻击强度较高，命中拦截阈值，直接拦截。",
+                threshold_reason="模型判断为高风险辱骂攻击内容，且风险分达到拦截阈值，建议直接拦截。",
             )
 
-        if risk_score >= 0.45 or highest_rule >= 0.75 or low_confidence:
-            reason = "中风险样本："
-            if low_confidence:
-                reason += "模型置信度偏低，进入人工审核。"
-            elif highest_rule >= 0.75:
-                reason += "命中规则但未达到直接拦截阈值，进入人工审核。"
-            else:
-                reason += "综合风险分处于审核区间，进入人工审核。"
-            return Decision(
+        if low_confidence:
+            return self._build_decision(
                 action="review",
-                action_name=ACTION_DISPLAY_NAME["review"],
-                risk_band="medium",
-                risk_band_name=RISK_BAND_DISPLAY_NAME["medium"],
-                threshold_reason=reason,
+                threshold_reason="模型判断存在风险，但当前置信度偏低，建议进入人工审核。",
             )
 
-        return Decision(
+        if base_risk_score >= 0.45:
+            return self._build_decision(
+                action="review",
+                threshold_reason="模型判断内容存在风险，风险分进入人工审核区间，建议进入人工审核。",
+            )
+
+        return self._build_decision(
             action="allow",
-            action_name=ACTION_DISPLAY_NAME["allow"],
-            risk_band="low",
-            risk_band_name=RISK_BAND_DISPLAY_NAME["low"],
-            threshold_reason="低风险样本：未命中强规则，模型风险分较低，允许放行。",
+            threshold_reason="模型判断为低风险内容，综合风险分较低，建议放行。",
         )
 
     def _build_source(self, rule_hits: list[RuleHit]) -> str:
@@ -249,34 +281,54 @@ class ModerationPipeline:
             return "model"
         return "rules"
 
+    def _strongest_rule_hit(self, rule_hits: list[RuleHit]) -> RuleHit | None:
+        if not rule_hits:
+            return None
+        return max(rule_hits, key=lambda hit: hit.severity)
+
     def _build_reasons(
         self,
+        model_label: str,
         label: str,
         model_confidence: float,
         rule_hits: list[RuleHit],
         decision: Decision,
     ) -> list[str]:
-        reasons = [f"主标签为 {LABEL_DISPLAY_NAME[label]}。"]
-        reasons.append(f"最终动作：{decision.action_name}，风险等级为 {decision.risk_band_name}。")
+        reasons = [f"模型主判断：{LABEL_DISPLAY_NAME[model_label]}。"]
+        reasons.append(
+            f"最终标签：{LABEL_DISPLAY_NAME[label]}；审核动作：{decision.action_name}，风险等级为 {decision.risk_band_name}。"
+        )
 
         if self.model_loaded:
-            reasons.append(f"模型置信度为 {model_confidence:.2f}。")
+            reasons.append(f"模型置信度：{model_confidence:.2f}。")
         else:
-            reasons.append("当前未加载微调模型，使用规则兜底策略。")
+            reasons.append("当前未加载微调模型，使用规则兜底和默认模型概率。")
 
-        for hit in rule_hits[:3]:
-            reasons.append(f"{LABEL_DISPLAY_NAME[hit.label]}：{hit.reason} -> {hit.matched_text}")
+        reasons.extend(self._build_grouped_rule_reasons(rule_hits))
 
         return reasons
 
+    def _build_grouped_rule_reasons(self, rule_hits: list[RuleHit]) -> list[str]:
+        if not rule_hits:
+            return []
 
-if __name__ == "__main__":
-    pipeline = ModerationPipeline()
-    sample_texts = [
-        "加微信领取优惠券，今天最后一天",
-        "这次更新后加载速度提升明显",
-        "你这人说话真欠，没人想理你",
-    ]
+        grouped: dict[str, dict[str, list[str]]] = {}
+        for hit in rule_hits:
+            if hit.label not in grouped:
+                grouped[hit.label] = {"reasons": [], "matched_texts": []}
 
-    for text in sample_texts:
-        print(json.dumps(pipeline.predict(text), ensure_ascii=False, indent=2))
+            normalized_reason = hit.reason.removeprefix("命中")
+            if normalized_reason not in grouped[hit.label]["reasons"]:
+                grouped[hit.label]["reasons"].append(normalized_reason)
+            if hit.matched_text not in grouped[hit.label]["matched_texts"]:
+                grouped[hit.label]["matched_texts"].append(hit.matched_text)
+
+        summaries: list[str] = []
+        for grouped_label, payload in grouped.items():
+            reason_text = "、".join(payload["reasons"])
+            matched_text = "、".join(payload["matched_texts"])
+            summaries.append(
+                f"{LABEL_DISPLAY_NAME[grouped_label]}：命中{reason_text}；命中内容：{matched_text}。"
+            )
+
+        return summaries

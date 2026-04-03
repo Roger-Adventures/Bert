@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from pipeline import ModerationPipeline
+from pipeline import DEFAULT_MODEL_DIR, ModerationPipeline
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -22,18 +22,14 @@ class PredictRequest(BaseModel):
     text: str = Field(..., min_length=1, description="待审核文本")
 
 
-class BatchPredictRequest(BaseModel):
-    texts: list[str] = Field(..., min_length=1, description="批量待审核文本")
-
-
 def module_available(module_name: str) -> bool:
     return importlib.util.find_spec(module_name) is not None
 
 
 def create_app(model_dir: str | None = None) -> FastAPI:
-    resolved_model_dir = model_dir or os.getenv("MODEL_DIR", "artifacts/moderation_macbert")
+    resolved_model_dir = model_dir or os.getenv("MODEL_DIR", DEFAULT_MODEL_DIR)
     moderation_pipeline = ModerationPipeline(model_dir=resolved_model_dir)
-    app = FastAPI(title="中文内容审核决策原型", version="0.3.0")
+    app = FastAPI(title="中文内容审核策略原型", version="0.3.0")
 
     if STATIC_DIR.exists():
         app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -63,10 +59,6 @@ def create_app(model_dir: str | None = None) -> FastAPI:
     @app.post("/predict")
     def predict(request: PredictRequest) -> dict[str, object]:
         return moderation_pipeline.predict(request.text)
-
-    @app.post("/batch_predict")
-    def batch_predict(request: BatchPredictRequest) -> list[dict[str, object]]:
-        return moderation_pipeline.batch_predict(request.texts)
 
     return app
 

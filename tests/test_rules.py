@@ -11,3 +11,8 @@ def test_ad_rule_detects_contact_and_promotion() -> None:
 def test_safe_text_has_no_rule_hits() -> None:
     hits = find_rule_hits("这篇教程写得很细，适合刚入门的新手。")
     assert hits == []
+
+
+def test_normal_recycling_text_has_no_abuse_rule_hits() -> None:
+    hits = find_rule_hits("这篇科普文章介绍了垃圾分类和废物回收的意义。")
+    assert hits == []

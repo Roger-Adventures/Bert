@@ -53,7 +53,7 @@ RULES: list[RuleDefinition] = [
         label="ad",
         rule_name="promotion_keywords",
         pattern=re.compile(
-            r"(优惠券|优惠价|返利|刷单|兼职|代理|加盟|引流|批发价|接急单|代写|拉人|涨赞|买粉|清仓|回本|接单赚钱)",
+            r"(优惠券|优惠价|返利|刷单|兼职|代理|加盟|引流|批发价|接急单|代写|拉人|涨赞|买粉|清仓|回本|接单赚钱|代发|推文|日结|日撸|挂机|小红书|快手认证|视频号)",
             re.IGNORECASE,
         ),
         severity=0.78,
@@ -64,7 +64,7 @@ RULES: list[RuleDefinition] = [
         label="sexual",
         rule_name="sexual_invitation",
         pattern=re.compile(
-            r"(约会|约吗|约炮|裸聊|私密照|福利视频|成人资源|成人视频|擦边|暧昧聊天)",
+            r"(约会|约吗|约炮|裸聊|私密照|福利视频|成人资源|成人视频|擦边|暧昧聊天|果照|原味内衣|黄游|瑟瑟|色视频|禁漫|91)",
             re.IGNORECASE,
         ),
         severity=0.88,
@@ -75,7 +75,7 @@ RULES: list[RuleDefinition] = [
         label="sexual",
         rule_name="private_chat_induction",
         pattern=re.compile(
-            r"(私聊看图|私信看图|加我看图|单独约|懂的来|晚上更精彩|私密照片)",
+            r"(私聊看图|私信看图|加我看图|单独约|懂的来|晚上更精彩|私密照片|通过一下|加我一下|自己扣)",
             re.IGNORECASE,
         ),
         severity=0.80,
@@ -86,7 +86,7 @@ RULES: list[RuleDefinition] = [
         label="abuse",
         rule_name="abuse_keywords",
         pattern=re.compile(
-            r"(废物|闭嘴|脑子进水|恶心人|滚远点|垃圾观点|烦死了|丢人|蠢|火大|没人想理你)",
+            r"(闭嘴|脑子进水|恶心人|滚远点|垃圾观点|丢人|蠢货|蠢猪|蠢|没人想理你|野种|有病|没教养|傻雕|傻子|丑东西|老不死)",
             re.IGNORECASE,
         ),
         severity=0.76,

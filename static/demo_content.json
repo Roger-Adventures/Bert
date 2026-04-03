@@ -1,0 +1,147 @@
+{
+  "default_sample_id": "ad_review_1",
+  "sample_groups": [
+    {
+      "id": "normal",
+      "label": "正常内容",
+      "description": "用于展示直接放行的低风险样本",
+      "items": [
+        {
+          "id": "normal_allow_1",
+          "title": "跑通反馈",
+          "action": "allow",
+          "action_label": "放行",
+          "text": "这篇教程写得很细，我照着操作后已经跑通了。"
+        },
+        {
+          "id": "normal_allow_2",
+          "title": "更新体验",
+          "action": "allow",
+          "action_label": "放行",
+          "text": "这次更新后加载速度确实快了，提交页也比上周稳定。"
+        }
+      ]
+    },
+    {
+      "id": "abuse",
+      "label": "辱骂攻击",
+      "description": "覆盖明确辱骂与语境待确认两类样本",
+      "items": [
+        {
+          "id": "abuse_block_1",
+          "title": "评论区辱骂",
+          "action": "block",
+          "action_label": "拦截",
+          "text": "发这种东西还好意思置顶？真是丢人现眼，赶紧闭嘴。"
+        },
+        {
+          "id": "abuse_block_2",
+          "title": "直接嘲讽",
+          "action": "block",
+          "action_label": "拦截",
+          "text": "你这点水平就别出来教人了，脑子进水了吧。"
+        },
+        {
+          "id": "abuse_review_1",
+          "title": "引用争吵截图",
+          "action": "review",
+          "action_label": "人审",
+          "text": "他把“没人想理你”这句话原样截图发出来，像是在复述争吵过程。"
+        }
+      ]
+    },
+    {
+      "id": "sexual",
+      "label": "低俗色情",
+      "description": "覆盖明确违规与语境待确认样本",
+      "items": [
+        {
+          "id": "sexual_block_1",
+          "title": "私聊看完整版",
+          "action": "block",
+          "action_label": "拦截",
+          "text": "主页还有更多擦边图，想看完整版的自己私聊。"
+        },
+        {
+          "id": "sexual_block_2",
+          "title": "资源暗语邀约",
+          "action": "block",
+          "action_label": "拦截",
+          "text": "有私密照和91资源，懂的来，晚上更精彩。"
+        },
+        {
+          "id": "sexual_review_1",
+          "title": "复盘判定边界",
+          "action": "review",
+          "action_label": "人审",
+          "text": "运营复盘里专门提到“擦边”判定边界，例子其实是普通穿搭视频。"
+        }
+      ]
+    },
+    {
+      "id": "ad",
+      "label": "广告引流",
+      "description": "覆盖明确引流与语境待确认样本",
+      "items": [
+        {
+          "id": "ad_block_1",
+          "title": "返利引流",
+          "action": "block",
+          "action_label": "拦截",
+          "text": "想做副业的加微信 abc8899，返利渠道今天最后一波。"
+        },
+        {
+          "id": "ad_block_2",
+          "title": "代发接单",
+          "action": "block",
+          "action_label": "拦截",
+          "text": "小红书代发接单，一篇十块，想做的私聊我。"
+        },
+        {
+          "id": "ad_review_1",
+          "title": "复盘代理话术",
+          "action": "review",
+          "action_label": "人审",
+          "text": "最近有人复盘“代理”话术被滥用的案例，主题更像治理讨论。"
+        }
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "id": "normal_allow_case",
+      "group_label": "正常内容",
+      "text": "这篇教程写得很细，我照着操作后已经跑通了。"
+    },
+    {
+      "id": "abuse_block_case",
+      "group_label": "辱骂攻击",
+      "text": "发这种东西还好意思置顶？真是丢人现眼，赶紧闭嘴。"
+    },
+    {
+      "id": "abuse_review_case",
+      "group_label": "辱骂攻击",
+      "text": "他把“没人想理你”这句话原样截图发出来，像是在复述争吵过程。"
+    },
+    {
+      "id": "sexual_block_case",
+      "group_label": "低俗色情",
+      "text": "主页还有更多擦边图，想看完整版的自己私聊。"
+    },
+    {
+      "id": "sexual_review_case",
+      "group_label": "低俗色情",
+      "text": "运营复盘里专门提到“擦边”判定边界，例子其实是普通穿搭视频。"
+    },
+    {
+      "id": "ad_block_case",
+      "group_label": "广告引流",
+      "text": "想做副业的加微信 abc8899，返利渠道今天最后一波。"
+    },
+    {
+      "id": "ad_review_case",
+      "group_label": "广告引流",
+      "text": "最近有人复盘“代理”话术被滥用的案例，主题更像治理讨论。"
+    }
+  ]
+}
